@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Order Change AI helps e-commerce teams review order-change requests before updating a store." />
+    <title>Order Change AI | K.AI Lab Tech</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="Order Change AI home"><span class="brand-mark">↗</span><span>Order Change <b>AI</b></span></a>
+        <div class="top-actions"><span class="demo-pill"><i></i> Demo workspace</span><button class="ghost" id="helpButton">How it works</button><button class="avatar" aria-label="Account menu">KS</button></div>
+      </header>
+
+      <section class="intro" id="top">
+        <div>
+          <p class="eyebrow">K.AI LAB TECH / E-COMMERCE AUTOMATION</p>
+          <h1>Turn every order change into a clear, controlled next step.</h1>
+          <p class="lede">Connect a store, review a request, and let the assistant prepare the safest action before anything is changed.</p>
+        </div>
+        <div class="safety-card"><span class="shield">✓</span><div><b>Human approval stays in control</b><small>The app recommends. Your team confirms every store update.</small></div></div>
+      </section>
+
+      <section class="steps" aria-label="Order Change AI workflow">
+        <article class="step active" data-step="1"><span>1</span><div><b>Connect</b><small>Link a platform or use manual input</small></div></article>
+        <article class="step" data-step="2"><span>2</span><div><b>Analyze</b><small>Review order, stock and customer context</small></div></article>
+        <article class="step" data-step="3"><span>3</span><div><b>Recommend</b><small>Get a prioritised change plan</small></div></article>
+        <article class="step" data-step="4"><span>4</span><div><b>Grow</b><small>Track outcomes with confidence</small></div></article>
+      </section>
+
+      <section class="workspace">
+        <div class="panel connections">
+          <div class="panel-heading"><div><p class="section-kicker">01 / CONNECT</p><h2>Your commerce stack</h2></div><button class="text-button" id="resetConnections">Reset demo</button></div>
+          <p class="muted">Use the demo below. In production, each client authorises their own account through a secure connection.</p>
+          <div class="platform-grid">
+            <button class="platform-card" data-platform="Shopify"><span class="platform-icon shopify">S</span><span><b>Shopify</b><small>Orders, products &amp; customers</small></span><em>Connect</em></button>
+            <button class="platform-card" data-platform="WooCommerce"><span class="platform-icon woo">W</span><span><b>WooCommerce</b><small>Orders &amp; inventory</small></span><em>Connect</em></button>
+            <button class="platform-card" data-platform="WhatsApp"><span class="platform-icon whatsapp">⌁</span><span><b>WhatsApp</b><small>Customer request messages</small></span><em>Connect</em></button>
+            <button class="platform-card" data-platform="Amazon"><span class="platform-icon amazon">a</span><span><b>Amazon</b><small>Manual ASIN or account link</small></span><em>Connect</em></button>
+          </div>
+        </div>
+
+        <div class="panel request-panel">
+          <div class="panel-heading"><div><p class="section-kicker">02 / ANALYZE</p><h2>Review a change request</h2></div><span class="status" id="requestStatus">Ready</span></div>
+          <form id="requestForm">
+            <label>Store platform<select id="platformSelect"><option>Shopify</option><option>WooCommerce</option><option>Amazon</option><option>Manual order</option></select></label>
+            <div class="two-col"><label>Order ID<input id="orderId" value="ORD-2048" required /></label><label>ASIN / Product SKU<input id="sku" value="KAI-TRAVEL-MUG-BLK" /></label></div>
+            <label>Customer request<textarea id="requestText" required>Customer wants to change quantity from 1 to 2 and update the delivery address before dispatch.</textarea></label>
+            <button class="primary" type="submit"><span>Analyze request</span><strong>→</strong></button>
+          </form>
+          <p class="form-note">Demo only. No store update is sent from this screen.</p>
+        </div>
+      </section>
+
+      <section class="results" id="results" aria-live="polite">
+        <div class="results-header"><div><p class="section-kicker">03 / RECOMMEND</p><h2>Recommended action plan</h2></div><span class="confidence">Confidence <b id="confidence">—</b></span></div>
+        <div class="empty-state" id="emptyState"><span class="spark">✦</span><h3>Ready when you are</h3><p>Analyze an order change request to see a prioritised plan, risk checks and an approval action.</p></div>
+        <div class="result-grid hidden" id="resultGrid">
+          <article class="result-card primary-result"><div class="result-label">PRIORITY ACTION</div><h3 id="actionTitle">—</h3><p id="actionCopy">—</p><button class="approve" id="approveButton">Prepare for approval <span>→</span></button></article>
+          <article class="result-card"><div class="result-label">CHECKS COMPLETED</div><ul id="checkList"></ul></article>
+          <article class="result-card"><div class="result-label">SUGGESTED CUSTOMER REPLY</div><p class="reply" id="customerReply">—</p><button class="copy-button" id="copyButton">Copy reply</button></article>
+        </div>
+      </section>
+    </main>
+    <dialog id="helpDialog"><button class="close-dialog" aria-label="Close">×</button><p class="section-kicker">HOW IT WORKS</p><h2>Connect. Analyze. Recommend. Grow.</h2><p>Order Change AI is designed for e-commerce teams. Clients connect their own Shopify, WooCommerce, WhatsApp or Amazon account. The assistant prepares a change plan, but a human approves the action before the store is updated.</p></dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
