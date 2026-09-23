@@ -39,7 +39,7 @@
           <div class="panel-heading"><div><p class="section-kicker">01 / CONNECT</p><h2>Your commerce stack</h2></div><button class="text-button" id="resetConnections">Reset demo</button></div>
           <p class="muted">Use the demo below. In production, each client authorises their own account through a secure connection.</p>
           <div class="platform-grid">
-            <button class="platform-card" data-platform="Shopify"><span class="platform-icon shopify">S</span><span><b>Shopify</b><small>Orders, products &amp; customers</small></span><em>Connect</em></button>
+            <button class="platform-card" data-platform="Shopify" id="shopifyConnect"><span class="platform-icon shopify">S</span><span><b>Shopify</b><small>Orders, products &amp; customers</small></span><em>Connect</em></button>
             <button class="platform-card" data-platform="WooCommerce"><span class="platform-icon woo">W</span><span><b>WooCommerce</b><small>Orders &amp; inventory</small></span><em>Connect</em></button>
             <button class="platform-card" data-platform="WhatsApp"><span class="platform-icon whatsapp">⌁</span><span><b>WhatsApp</b><small>Customer request messages</small></span><em>Connect</em></button>
             <button class="platform-card" data-platform="Amazon"><span class="platform-icon amazon">a</span><span><b>Amazon</b><small>Manual ASIN or account link</small></span><em>Connect</em></button>
@@ -50,11 +50,11 @@
           <div class="panel-heading"><div><p class="section-kicker">02 / ANALYZE</p><h2>Review a change request</h2></div><span class="status" id="requestStatus">Ready</span></div>
           <form id="requestForm">
             <label>Store platform<select id="platformSelect"><option>Shopify</option><option>WooCommerce</option><option>Amazon</option><option>Manual order</option></select></label>
-            <div class="two-col"><label>Order ID<input id="orderId" value="ORD-2048" required /></label><label>ASIN / Product SKU<input id="sku" value="KAI-TRAVEL-MUG-BLK" /></label></div>
+            <div class="two-col"><label>Order ID<input id="orderId" value="#1001" required /></label><label>ASIN / Product SKU<input id="sku" value="" placeholder="Fetched from Shopify" /></label></div>
             <label>Customer request<textarea id="requestText" required>Customer wants to change quantity from 1 to 2 and update the delivery address before dispatch.</textarea></label>
             <button class="primary" type="submit"><span>Analyze request</span><strong>→</strong></button>
           </form>
-          <p class="form-note">Demo only. No store update is sent from this screen.</p>
+          <p class="form-note" id="formNote">Connect Shopify to fetch a real test order. No store update is sent from this screen.</p>
         </div>
       </section>
 
