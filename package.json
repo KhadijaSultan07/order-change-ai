@@ -1,9 +1,0 @@
-{
-  "name": "order-change-ai",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "npx serve . -l 4173",
-    "build": "node -e \"console.log('Static app ready for Vercel')\""
-  }
-}
