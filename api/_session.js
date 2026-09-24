@@ -27,7 +27,7 @@ function decodeSession(cookieHeader = '') {
 }
 
 function setCookie(res, value) {
-  res.setHeader('Set-Cookie', `shopify_session=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ONE_HOUR}`);
+  res.setHeader('Set-Cookie', `shopify_session=${value}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${ONE_HOUR}`);
 }
 
 function validShop(shop) {
