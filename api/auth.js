@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   const redirectUri = `${process.env.APP_URL}/api/auth/callback`;
   const authorize = new URL(`https://${shop}/admin/oauth/authorize`);
   authorize.searchParams.set('client_id', process.env.SHOPIFY_CLIENT_ID);
-  authorize.searchParams.set('scope', 'read_orders,write_orders');
+  authorize.searchParams.set('scope', 'read_orders,write_orders,read_customers');
   authorize.searchParams.set('redirect_uri', redirectUri);
   authorize.searchParams.set('state', state);
   res.writeHead(302, { Location: authorize.toString() });
