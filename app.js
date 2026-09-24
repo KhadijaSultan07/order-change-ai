@@ -1,180 +1,56 @@
-const platforms = document.querySelectorAll('.platform-card');
-const steps = document.querySelectorAll('.step');
-const form = document.querySelector('#requestForm');
-const resultGrid = document.querySelector('#resultGrid');
-const emptyState = document.querySelector('#emptyState');
-const status = document.querySelector('#requestStatus');
-const helpDialog = document.querySelector('#helpDialog');
-const formNote = document.querySelector('#formNote');
-const requestQueue = document.querySelector('#requestQueue');
-let activeRequestId = null;
+const $ = (s) => document.querySelector(s);
+let requests = [], activeOrder = null, activeRequest = null;
+const params = new URLSearchParams(location.search);
+let shopifyConnected = params.get('connected') === 'shopify';
+const money = (n, c = 'PKR') => new Intl.NumberFormat('en-PK', { style: 'currency', currency: c, maximumFractionDigits: 2 }).format(Number(n || 0));
+const orderNo = (n) => String(n || '').startsWith('#') ? String(n) : `#${String(n || '').replace('#', '')}`;
 
-const params = new URLSearchParams(window.location.search);
-const shopifyConnected = params.get('connected') === 'shopify';
-
-if (shopifyConnected) {
-  const shopifyCard = document.querySelector('#shopifyConnect');
-  shopifyCard.classList.add('connected');
-  shopifyCard.querySelector('em').textContent = 'Connected';
-  formNote.textContent = 'Shopify connected for this browser session. Analyze #1001 to fetch the real test order.';
-  window.history.replaceState({}, document.title, window.location.pathname);
+function typeOf(message) {
+  if (/address|delivery/i.test(message)) return 'address_change';
+  if (/cancel/i.test(message)) return 'cancel_order';
+  if (/remove|refund/i.test(message)) return 'remove_item';
+  const p = message.match(/(?:from\s*)?(\d+)\s*(?:to|→)\s*(\d+)/i);
+  return p && +p[2] < +p[1] ? 'quantity_decrease' : 'quantity_increase';
 }
-
-platforms.forEach((card) => card.addEventListener('click', () => {
-  if (card.dataset.platform === 'Shopify') {
-    const shop = window.prompt('Enter your Shopify store domain', 'kai-order-change-demo.myshopify.com');
-    if (shop) window.location.href = `/api/auth?shop=${encodeURIComponent(shop.trim())}`;
-    return;
-  }
-  card.classList.toggle('connected');
-  card.querySelector('em').textContent = card.classList.contains('connected') ? 'Connected' : 'Connect';
-  document.querySelector('#platformSelect').value = card.dataset.platform === 'WhatsApp' ? 'Manual order' : card.dataset.platform;
-}));
-
-requestQueue.addEventListener('click', (event) => {
-  const item = event.target.closest('.queue-item');
-  if (!item) return;
-  document.querySelectorAll('.queue-item').forEach((queueItem) => queueItem.classList.toggle('selected', queueItem === item));
-  document.querySelector('#orderId').value = item.dataset.order;
-  document.querySelector('#requestText').value = item.dataset.request;
-  status.textContent = `${item.dataset.source} request selected`;
-  formNote.textContent = 'Review this request against the connected Shopify order. The order is never changed until approval.';
-  document.querySelector('.request-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
-
-document.querySelector('#newRequestButton').addEventListener('click', () => {
-  document.querySelector('#orderId').value = '';
-  document.querySelector('#sku').value = '';
-  document.querySelector('#requestText').value = '';
-  document.querySelector('#requestText').focus();
-  status.textContent = 'New request';
-  document.querySelector('.request-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
-
-document.querySelector('#resetConnections').addEventListener('click', () => platforms.forEach((card) => {
-  card.classList.remove('connected'); card.querySelector('em').textContent = 'Connect';
-}));
-
-function requestType(request) {
-  if (/address|delivery/i.test(request)) return 'address_change';
-  if (/cancel/i.test(request)) return 'cancel_order';
-  if (/remove|refund/i.test(request)) return 'remove_item';
-  const quantityMatch = request.match(/(?:from\s*)?(\d+)\s*(?:to|→)\s*(\d+)/i);
-  if (quantityMatch) return Number(quantityMatch[2]) < Number(quantityMatch[1]) ? 'quantity_decrease' : 'quantity_increase';
-  if (/decrease|reduce|less/i.test(request)) return 'quantity_decrease';
-  return 'quantity_increase';
+function quantities(message, fallback) {
+  const p = message.match(/(?:from\s*)?(\d+)\s*(?:to|→)\s*(\d+)/i);
+  return p ? { from: +p[1], to: +p[2] } : { from: fallback, to: fallback };
 }
+function groups() { return Object.values(requests.reduce((a, r) => { const k = orderNo(r.order_number); (a[k] ||= []).push(r); return a; }, {})); }
+function latest(rows) { return [...rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0]; }
+function original(row) { const o = row.current_order || {}, item = o.lineItems?.[0] || {}; return { qty: +(item.quantity || 0), total: +(row.current_total ?? o.total ?? 0), unit: +(item.unitPrice || 0), currency: o.currency || 'PKR' }; }
+function final(rows) { const initial = original(rows[0]); let qty = initial.qty, total = initial.total; [...rows].sort((a,b) => new Date(a.created_at)-new Date(b.created_at)).forEach(r => { const p = r.proposed_change || {}; if (Number.isFinite(+p.proposedQty)) qty = +p.proposedQty; if (Number.isFinite(+r.proposed_total)) total = +r.proposed_total; }); return { ...initial, qty, total, diff: total - initial.total }; }
+function label(row) { return row.status === 'approved' ? 'Finalised' : row.status === 'rejected' ? 'Rejected' : row.status === 'payment_due' ? 'Payment due' : 'Dispatch hold'; }
 
-function calculation(request, orderData) {
-  const item = orderData?.lineItems?.[0];
-  const match = request.match(/(?:from\s*)?(\d+)\s*(?:to|→)\s*(\d+)/i);
-  const currentQty = match ? Number(match[1]) : item?.quantity || 0;
-  const proposedQty = match ? Number(match[2]) : currentQty;
-  const unitPrice = Number(item?.unitPrice || 0);
-  const difference = (proposedQty - currentQty) * unitPrice;
-  return { currentQty, proposedQty, unitPrice, difference, proposedTotal: Number(orderData?.total || 0) + difference };
+async function json(url, opts) { const res = await fetch(url, opts); const text = await res.text(); let data; try { data = text ? JSON.parse(text) : {}; } catch { throw new Error('Server response is invalid. Check the latest Vercel function log.'); } if (!res.ok) throw new Error(data.error || 'Request failed.'); return data; }
+function shopifyState() { if (shopifyConnected) { $('#shopifyConnect').classList.add('connected'); $('#shopifyConnect em').textContent = 'Connected'; $('#formNote').textContent = 'Shopify connected. The original order is read before every request is saved.'; history.replaceState({}, document.title, location.pathname); } }
+
+function renderSummary() {
+  let hold=0, pay=0, refund=0, approved=0;
+  groups().forEach(g => { const r=latest(g), f=final(g); r.status === 'approved' ? approved++ : hold++; if (r.status === 'payment_due') pay += Math.max(f.diff,0); if (f.diff < 0 && r.status !== 'rejected') refund += -f.diff; });
+  $('#pendingCount').textContent=hold; $('#paymentDue').textContent=money(pay); $('#refundDue').textContent=money(refund); $('#approvedCount').textContent=approved; $('#connectionStatus').textContent='Database connected';
 }
-
-async function saveChangeRequest(order, request, orderData) {
-  const type = requestType(request);
-  const money = calculation(request, orderData);
-  const statusForPayment = type === 'quantity_increase' && money.difference > 0 ? 'payment_due' : 'needs_review';
-  const body = {
-    source: 'manual', shop_domain: 'kai-order-change-demo.myshopify.com', shopify_order_id: orderData?.id || null,
-    order_number: orderData?.name || order, customer_name: [orderData?.customer?.firstName, orderData?.customer?.lastName].filter(Boolean).join(' ') || null,
-    customer_phone: orderData?.customer?.phone || null, request_type: type, customer_message: request,
-    order_date: orderData?.createdAt || null, current_order: orderData || {},
-    proposed_change: { type, ...money }, current_total: Number(orderData?.total || 0), proposed_total: money.proposedTotal,
-    amount_difference: money.difference, payment_status: orderData?.financialStatus || null,
-    fulfillment_status: orderData?.fulfillmentStatus || null, status: statusForPayment
-  };
-  const response = await fetch('/api/change-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Could not save request');
-  activeRequestId = data.request.id;
-  return data.request;
+function renderQueue() {
+  const list=groups().sort((a,b)=>new Date(latest(b).created_at)-new Date(latest(a).created_at));
+  $('#requestQueue').innerHTML=list.length ? list.map(g => { const r=latest(g), f=final(g), is=orderNo(r.order_number)===activeOrder, kind=f.diff>0?'quantity':f.diff<0?'cancel':'address'; return `<button class="queue-item ${is?'selected':''}" data-order="${orderNo(r.order_number)}"><span class="source ${r.source==='whatsapp'?'whatsapp-dot':'email-dot'}">${r.source==='whatsapp'?'⌁':'✎'}</span><span class="queue-main"><b>${r.customer_name||'Customer'} · ${orderNo(r.order_number)}</b><small>${g.length} request${g.length===1?'':'s'} · final qty ${f.qty} · ${money(f.total,f.currency)}</small></span><span class="change-tag ${kind}">${f.diff>0?'Increase':f.diff<0?'Decrease':String(r.request_type).replaceAll('_',' ')}</span><span class="queue-state ${r.status==='approved'?'final':r.status==='payment_due'?'calculate':'review'}">${label(r)}</span></button>`; }).join('') : '<div class="empty-queue">No saved requests yet. Start with Shopify order #1002.</div>';
 }
-
-function renderRecommendation({ order, request, orderData }) {
-  const isAddressChange = /address|delivery/i.test(request);
-  const isQuantityChange = /quantity|qty|two|increase|decrease/i.test(request);
-  const isCancellation = /cancel|remove|refund/i.test(request);
-  const productName = orderData?.lineItems?.[0]?.title;
-  const orderLabel = orderData?.name || order;
-  if (orderData?.sku) document.querySelector('#sku').value = orderData.sku;
-  document.querySelector('#actionTitle').textContent = isAddressChange ? 'Verify address, then update before dispatch' : isQuantityChange ? 'Check stock and payment difference before quantity update' : isCancellation ? 'Confirm item and refund impact before removal' : 'Review and prepare the requested order update';
-  document.querySelector('#actionCopy').textContent = `${orderLabel}${productName ? ` (${productName})` : ''} needs a controlled update. No store change will be sent until your team confirms the final action.`;
-  const money = calculation(request, orderData);
-  if (isQuantityChange && money.unitPrice) document.querySelector('#actionCopy').textContent += ` Quantity ${money.currentQty} → ${money.proposedQty}: ${money.difference > 0 ? 'payment due' : 'refund due'} ${Math.abs(money.difference).toFixed(2)} ${orderData.currency || ''}.`;
-  document.querySelector('#checkList').innerHTML = [
-    orderData ? `Live Shopify check: ${orderData.fulfillmentStatus || 'unfulfilled'}` : 'Order status reviewed: not dispatched',
-    isQuantityChange ? 'Requested quantity change flagged for stock and payment check' : isCancellation ? 'Item removal and refund impact flagged for review' : 'Requested change captured for review',
-    isAddressChange ? 'Delivery address needs customer confirmation' : 'Customer message is ready for confirmation',
-    orderData?.financialStatus ? `Payment status: ${orderData.financialStatus}` : null
-  ].filter(Boolean).map(item => `<li>${item}</li>`).join('');
-  document.querySelector('#customerReply').textContent = `Hi${orderData?.customer?.firstName ? ` ${orderData.customer.firstName}` : ''}, we received your request for order ${orderLabel}. Our team is checking the change now and will confirm the updated order details shortly.`;
-  document.querySelector('#confidence').textContent = isAddressChange ? 'High' : 'Medium';
-  status.textContent = orderData ? 'Live order loaded' : 'Analysis ready';
-  status.style.color = '#19d6d1';
-  emptyState.classList.add('hidden'); resultGrid.classList.remove('hidden');
-  steps.forEach((step, index) => step.classList.toggle('active', index < 3));
-  document.querySelector('#results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+function renderOrder(number) {
+  const rows=groups().find(g=>orderNo(g[0].order_number)===number); if(!rows) return;
+  const r=latest(rows), o=original(rows[0]), f=final(rows), shop=r.current_order||{}; activeOrder=number; activeRequest=r.id;
+  $('#emptyOrder').classList.add('hidden'); $('#orderTruth').classList.remove('hidden'); $('#selectedOrder').textContent=number; $('#selectedCustomer').textContent=r.customer_name||'Customer'; $('#selectedDate').textContent=shop.createdAt?new Date(shop.createdAt).toLocaleDateString():'Original Shopify order'; $('#originalQty').textContent=`${o.qty} item${o.qty===1?'':'s'}`; $('#originalTotal').textContent=money(o.total,o.currency); $('#finalQty').textContent=`${f.qty} item${f.qty===1?'':'s'}`; $('#finalTotal').textContent=money(f.total,o.currency);
+  $('#moneyLabel').textContent=f.diff>0?'Additional payment required before approval':f.diff<0?'Refund / credit required after approval':'No payment difference'; $('#moneyDifference').textContent=f.diff?`${f.diff>0?'+':'−'} ${money(Math.abs(f.diff),o.currency)}`:'No change'; $('#dispatchFlag').textContent=label(r); $('#dispatchInstruction').textContent=r.status==='approved'?`FINAL DISPATCH STATE: fulfil ${f.qty} item${f.qty===1?'':'s'} only.`:r.status==='payment_due'?'DISPATCH HOLD: collect additional payment, then approve the final state.':'DISPATCH HOLD: do not fulfil the original order until the latest request is approved or rejected.';
+  $('#actionTitle').textContent=r.status==='approved'?`Final quantity is ${f.qty}. Ready for fulfilment.`:f.diff>0?'Collect the difference, then approve the latest quantity.':f.diff<0?'Confirm refund or credit, then approve the reduced quantity.':'Verify the request, then approve or reject it.'; $('#actionCopy').textContent=`Original order: ${o.qty} item(s), ${money(o.total,o.currency)}. Latest controlled state: ${f.qty} item(s), ${money(f.total,o.currency)}. ${rows.length>1?'Earlier requests remain in the timeline and do not control dispatch.':''}`;
+  $('#historyList').innerHTML=[...rows].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map((x,i)=>{const p=x.proposed_change||{};return `<li><b>${i+1}. ${String(x.request_type).replaceAll('_',' ')}</b><small>${x.customer_message}</small><em>${p.currentQty??'—'} → ${p.proposedQty??'—'} · ${label(x)}</em></li>`}).join(''); $('#customerReply').textContent=r.status==='approved'?`Hi ${r.customer_name||''}, your order ${number} has been updated to the final confirmed details. Thank you.`:`Hi ${r.customer_name||''}, we received your change request for order ${number}. We are checking the final quantity and payment details before dispatch, and will confirm shortly.`;
+  $('#emptyState').classList.add('hidden'); $('#resultGrid').classList.remove('hidden'); document.querySelectorAll('.step').forEach((s,i)=>s.classList.toggle('active',i<(r.status==='approved'?4:3))); renderQueue();
 }
+async function load() { try { const d=await json('/api/change-requests'); requests=d.requests||[]; renderSummary(); renderQueue(); if(activeOrder) renderOrder(activeOrder); } catch(e) { $('#connectionStatus').textContent='Database needs attention'; $('#formNote').textContent=e.message; } }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const order = document.querySelector('#orderId').value.trim() || 'this order';
-  const request = document.querySelector('#requestText').value.trim();
-  const isShopify = document.querySelector('#platformSelect').value === 'Shopify';
-  if (isShopify && shopifyConnected) {
-    status.textContent = 'Loading Shopify order…';
-    try {
-      const response = await fetch(`/api/order-lookup?order=${encodeURIComponent(order)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Order could not be loaded');
-      const saved = await saveChangeRequest(order, request, data.order);
-      renderRecommendation({ order, request, orderData: data.order });
-      status.textContent = saved.status === 'payment_due' ? 'Saved · payment due' : 'Saved for team review';
-      loadSavedRequests();
-      return;
-    } catch (error) {
-      formNote.textContent = `${error.message}. Demo analysis shown instead.`;
-    }
-  }
-  try {
-    const saved = await saveChangeRequest(order, request);
-    renderRecommendation({ order, request });
-    activeRequestId = saved.id;
-    loadSavedRequests();
-  } catch (error) {
-    formNote.textContent = error.message;
-    renderRecommendation({ order, request });
-  }
-});
+$('#shopifyConnect').addEventListener('click',()=>{if(shopifyConnected)return;const shop=prompt('Enter your Shopify store domain','kai-order-change-demo.myshopify.com');if(shop)location.href=`/api/auth?shop=${encodeURIComponent(shop.trim())}`});
+$('#newRequestButton').addEventListener('click',()=>{$('#requestForm').reset();$('#orderId').focus();$('#requestStatus').textContent='New request'});
+$('#requestQueue').addEventListener('click',e=>{const item=e.target.closest('.queue-item');if(item){renderOrder(item.dataset.order);$('#activeOrderPanel').scrollIntoView({behavior:'smooth',block:'center'})}});
+$('#requestForm').addEventListener('submit',async e=>{e.preventDefault(); const number=orderNo($('#orderId').value.trim()), message=$('#requestText').value.trim(); if(!shopifyConnected){$('#formNote').textContent='Connect Shopify first so this request is locked to the original live order.';return} try { $('#requestStatus').textContent='Reading original Shopify order…'; const found=await json(`/api/order-lookup?order=${encodeURIComponent(number)}`), order=found.order, prior=groups().find(g=>orderNo(g[0].order_number)===orderNo(order.name))||[], base=prior.length?original(prior[0]):{qty:+(order.lineItems?.[0]?.quantity||0),total:+(order.total||0),unit:+(order.lineItems?.[0]?.unitPrice||0),currency:order.currency||'PKR'}, before=prior.length?final(prior):base, type=typeOf(message), q=quantities(message,before.qty), proposedQty=type.includes('quantity')?q.to:before.qty, proposedTotal=type.includes('quantity')?base.total+(proposedQty-base.qty)*base.unit:base.total, diff=proposedTotal-base.total;
+  const payload={source:$('#sourceSelect').value,shop_domain:'kai-order-change-demo.myshopify.com',shopify_order_id:order.id,order_number:order.name,customer_name:[order.customer?.firstName,order.customer?.lastName].filter(Boolean).join(' '),customer_phone:order.customer?.phone||null,request_type:type,customer_message:message,order_date:order.createdAt,current_order:order,proposed_change:{type,originalQty:base.qty,currentQty:before.qty,proposedQty,unitPrice:base.unit,priorRequestCount:prior.length},current_total:base.total,proposed_total:proposedTotal,amount_difference:diff,payment_status:order.financialStatus||null,fulfillment_status:order.fulfillmentStatus||null,status:diff>0?'payment_due':'needs_review'}; $('#requestStatus').textContent='Saving controlled change…'; await json('/api/change-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});activeOrder=orderNo(order.name);await load();renderOrder(activeOrder);$('#requestStatus').textContent=diff>0?'Saved · payment due':'Saved · dispatch hold';$('#results').scrollIntoView({behavior:'smooth',block:'start'}); }catch(err){$('#requestStatus').textContent='Could not save';$('#formNote').textContent=err.message}});
+async function act(action){if(!activeRequest)return;try{await json('/api/change-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:activeRequest,action})});await load();renderOrder(activeOrder)}catch(e){$('#formNote').textContent=e.message}}
+$('#approveButton').addEventListener('click',()=>act('approved'));$('#rejectButton').addEventListener('click',()=>act('rejected'));$('#copyButton').addEventListener('click',async e=>{await navigator.clipboard.writeText($('#customerReply').textContent);e.currentTarget.textContent='Copied';setTimeout(()=>e.currentTarget.textContent='Copy reply',1500)});$('#helpButton').addEventListener('click',()=>$('#helpDialog').showModal());$('#helpDialog .close-dialog').addEventListener('click',()=>$('#helpDialog').close());
+shopifyState();load();
 
-document.querySelector('#approveButton').addEventListener('click', async (event) => {
-  if (activeRequestId) await fetch('/api/change-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: activeRequestId, action: 'approved' }) });
-  event.currentTarget.innerHTML = 'Ready for team approval <span>✓</span>';
-  event.currentTarget.style.background = '#73dfae';
-  steps.forEach(step => step.classList.add('active'));
-});
-
-async function loadSavedRequests() {
-  try {
-    const response = await fetch('/api/change-requests');
-    const data = await response.json();
-    if (!response.ok || !data.requests?.length) return;
-    requestQueue.innerHTML = data.requests.map(row => `<button class="queue-item" data-order="${row.order_number}" data-request="${row.customer_message}" data-source="${row.source}"><span class="source ${row.source === 'whatsapp' ? 'whatsapp-dot' : 'email-dot'}">${row.source === 'whatsapp' ? '⌁' : '✎'}</span><span class="queue-main"><b>${row.customer_name || 'Customer'} · ${row.order_number}</b><small>${row.customer_message}</small></span><span class="change-tag ${row.request_type.includes('quantity') ? 'quantity' : row.request_type.includes('address') ? 'address' : 'cancel'}">${row.request_type.replaceAll('_', ' ')}</span><span class="queue-state ${row.status === 'payment_due' ? 'calculate' : 'review'}">${row.status.replaceAll('_', ' ')}</span></button>`).join('');
-  } catch (_) { /* The desk still works while the database is unavailable. */ }
-}
-
-loadSavedRequests();
-
-document.querySelector('#copyButton').addEventListener('click', async (event) => {
-  await navigator.clipboard.writeText(document.querySelector('#customerReply').textContent);
-  event.currentTarget.textContent = 'Copied';
-  setTimeout(() => event.currentTarget.textContent = 'Copy reply', 1600);
-});
-
-document.querySelector('#helpButton').addEventListener('click', () => helpDialog.showModal());
-helpDialog.querySelector('.close-dialog').addEventListener('click', () => helpDialog.close());
