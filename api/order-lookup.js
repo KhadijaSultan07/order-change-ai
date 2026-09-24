@@ -13,7 +13,10 @@ module.exports = async (req, res) => {
     body: JSON.stringify({ query, variables: { query: `name:${name}` } })
   });
   const payload = await response.json();
-  if (!response.ok || payload.errors) return res.status(502).json({ error: 'Shopify order lookup failed.' });
+ if (!response.ok || payload.errors) {
+  const detail = payload?.errors?.[0]?.message || payload?.errors || payload?.error || 'Shopify order lookup failed.';
+  return res.status(502).json({ error: `Shopify order lookup failed: ${detail}` });
+}
   const order = payload.data.orders.nodes[0];
   if (!order) return res.status(404).json({ error: `Order #${name} was not found.` });
   const firstLine = order.lineItems.nodes[0] || {};
