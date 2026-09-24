@@ -21,17 +21,27 @@
       <section class="intro" id="top">
         <div>
           <p class="eyebrow">K.AI LAB TECH / E-COMMERCE AUTOMATION</p>
-          <h1>Turn every order change into a clear, controlled next step.</h1>
-          <p class="lede">Connect a store, review a request, and let the assistant prepare the safest action before anything is changed.</p>
+          <h1>See every customer order change before it becomes a costly mistake.</h1>
+          <p class="lede">One queue for WhatsApp, email and store requests. Match each message to its order, calculate the impact, then approve safely.</p>
         </div>
         <div class="safety-card"><span class="shield">✓</span><div><b>Human approval stays in control</b><small>The app recommends. Your team confirms every store update.</small></div></div>
       </section>
 
       <section class="steps" aria-label="Order Change AI workflow">
-        <article class="step active" data-step="1"><span>1</span><div><b>Connect</b><small>Link a platform or use manual input</small></div></article>
-        <article class="step" data-step="2"><span>2</span><div><b>Analyze</b><small>Review order, stock and customer context</small></div></article>
-        <article class="step" data-step="3"><span>3</span><div><b>Recommend</b><small>Get a prioritised change plan</small></div></article>
-        <article class="step" data-step="4"><span>4</span><div><b>Grow</b><small>Track outcomes with confidence</small></div></article>
+        <article class="step active" data-step="1"><span>1</span><div><b>Capture</b><small>Receive a customer change request</small></div></article>
+        <article class="step active" data-step="2"><span>2</span><div><b>Match</b><small>Find the right order and customer</small></div></article>
+        <article class="step" data-step="3"><span>3</span><div><b>Calculate</b><small>Check money, stock and dispatch risk</small></div></article>
+        <article class="step" data-step="4"><span>4</span><div><b>Approve</b><small>Update only with human approval</small></div></article>
+      </section>
+
+      <section class="change-inbox" aria-label="Customer order change inbox">
+        <div class="inbox-heading"><div><p class="section-kicker">LIVE CHANGE DESK</p><h2>Customer change requests</h2><p class="muted">WhatsApp intake will connect here next. These sample requests show the exact team workflow.</p></div><button class="primary compact" id="newRequestButton">+ Add request</button></div>
+        <div class="stat-grid"><article><b>3</b><span>Waiting for review</span></article><article><b>$2,629.95</b><span>Value affected today</span></article><article><b>1</b><span>Needs customer confirmation</span></article><article><b>0</b><span>Approved updates</span></article></div>
+        <div class="request-queue" id="requestQueue">
+          <button class="queue-item selected" data-order="#1001" data-request="Customer asks to change the delivery address before dispatch." data-source="WhatsApp"><span class="source whatsapp-dot">⌁</span><span class="queue-main"><b>Ayesha Khan · #1001</b><small>“Please send it to my new delivery address.”</small></span><span class="change-tag address">Address change</span><span class="queue-state review">Needs review</span></button>
+          <button class="queue-item" data-order="#1002" data-request="Customer asks to change the quantity from 1 to 2 before dispatch." data-source="WhatsApp"><span class="source whatsapp-dot">⌁</span><span class="queue-main"><b>Omar Ali · #1002</b><small>“Can you make the quantity two?”</small></span><span class="change-tag quantity">Quantity 1 → 2</span><span class="queue-state calculate">Calculate</span></button>
+          <button class="queue-item" data-order="#1003" data-request="Customer wants to cancel one item from the order before dispatch." data-source="Email"><span class="source email-dot">✉</span><span class="queue-main"><b>Sarah Ahmed · #1003</b><small>“Please remove the blue item from my order.”</small></span><span class="change-tag cancel">Remove item</span><span class="queue-state review">Needs review</span></button>
+        </div>
       </section>
 
       <section class="workspace">
@@ -47,11 +57,11 @@
         </div>
 
         <div class="panel request-panel">
-          <div class="panel-heading"><div><p class="section-kicker">02 / ANALYZE</p><h2>Review a change request</h2></div><span class="status" id="requestStatus">Ready</span></div>
+          <div class="panel-heading"><div><p class="section-kicker">02 / REVIEW</p><h2>Review selected request</h2></div><span class="status" id="requestStatus">Ready</span></div>
           <form id="requestForm">
             <label>Store platform<select id="platformSelect"><option>Shopify</option><option>WooCommerce</option><option>Amazon</option><option>Manual order</option></select></label>
             <div class="two-col"><label>Order ID<input id="orderId" value="#1001" required /></label><label>ASIN / Product SKU<input id="sku" value="" placeholder="Fetched from Shopify" /></label></div>
-            <label>Customer request<textarea id="requestText" required>Customer wants to change quantity from 1 to 2 and update the delivery address before dispatch.</textarea></label>
+            <label>Customer request<textarea id="requestText" required>Customer asks to change the delivery address before dispatch.</textarea></label>
             <button class="primary" type="submit"><span>Analyze request</span><strong>→</strong></button>
           </form>
           <p class="form-note" id="formNote">Connect Shopify to fetch a real test order. No store update is sent from this screen.</p>
