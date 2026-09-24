@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
 
   res.setHeader(
     'Set-Cookie',
-    `shopify_oauth_state=${stateValue}.${sign(stateValue)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`
+    `shopify_oauth_state=${stateValue}.${sign(stateValue)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=600`
   );
 
   const redirectUri = `${appUrl}/api/auth/callback`;
